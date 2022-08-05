@@ -2,6 +2,7 @@
 This repository is an implementation of "MASER: Multi-Agent Reinforcement Learning with Subgoals Generated from Experience Replay Buffer" accepted to ICML 2022.
 
 ## Requirements
+You need to install StarCraft2 and SMAC
 I provide all libraries and packages for this codes. Try the follow
 ```
 pip install -r requirements.txt
