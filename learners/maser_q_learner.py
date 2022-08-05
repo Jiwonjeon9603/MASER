@@ -11,7 +11,7 @@ import numpy as np
 import torch.nn as nn
 
 
-class MASERQLearner:
+class maserQLearner:
     def __init__(self, mac, scheme, logger, args):
         self.args = args
         self.mac = mac
@@ -52,8 +52,6 @@ class MASERQLearner:
         self.distance = nn.Sequential(
             nn.Linear(self.mac.scheme1['obs']['vshape'], 128),
             nn.ReLU(),
-       #     nn.Linear(self.mac.scheme1['obs']['vshape']*2, self.mac.scheme1['obs']['vshape']*2),
-       #     nn.ReLU(),
             nn.Linear(128, args.n_actions)
         ).to(device=self.device)
 
@@ -141,7 +139,7 @@ class MASERQLearner:
 
             q_ind_tot = th.stack(q_ind_tot_list, dim=2)
 
-            qval_up_idx = th.max(q_ind_tot, dim=1)[1]  # Find out max Q value for t=1~T-1 (whole episode)
+            ddqn_qval_up_idx = th.max(q_ind_tot, dim=1)[1]  # Find out max Q value for t=1~T-1 (whole episode)
 
             explore_q_target = th.ones(target_ind_q.shape) / target_ind_q.shape[-1]
             explore_q_target = explore_q_target.to(device=self.device)
@@ -151,20 +149,26 @@ class MASERQLearner:
             for i in range(batch.batch_size):
                 ddqn_up_list_subset = []
                 distance_subset = []
+                explore_loss_subset = []
                 for j in range(self.n_agents):
 
                     # For distance function
+
                     cos = nn.CosineSimilarity(dim=-1, eps=1e-8)
-                    goal_q = target_ind_q[i, qval_up_idx[i][j], j, :].repeat(target_ind_q.shape[1], 1)
+                    cos1 = nn.CosineSimilarity()
+                    goal_q = target_ind_q[i, ddqn_qval_up_idx[i][j], j, :].repeat(target_ind_q.shape[1], 1)
+
+                    a = cos(target_ind_q[i, :, j, :], goal_q)
+                    b = cos1(target_ind_q[i, :, j, :], goal_q)
 
                     similarity = 1 - cos(target_ind_q[i, :, j, :], goal_q)
                     dist_obs = self.distance(observation[i, :, j, :])
-                    dist_og = self.distance(observation[i, qval_up_idx[i][j], j, :])
+                    dist_og = self.distance(observation[i, ddqn_qval_up_idx[i][j], j, :])
 
                     dist_loss = th.norm(dist_obs - dist_og.repeat(dist_obs.shape[0], 1), dim=-1) - similarity
                     distance_loss = th.mean(dist_loss ** 2)
                     distance_subset.append(distance_loss)
-                    ddqn_up_list_subset.append(observation[i, qval_up_idx[i][j], j, :])
+                    ddqn_up_list_subset.append(observation[i, ddqn_qval_up_idx[i][j], j, :])
 
                 distance1 = th.stack(distance_subset)
                 distance_list.append(distance1)
@@ -223,7 +227,6 @@ class MASERQLearner:
             masked_td_individual_error = td_individual_error * ind_mask
             individual_loss = th.sum(masked_td_individual_error ** 2).sum() / th.mean(ind_mask, dim=-1).sum()
             mix_explore_distance_loss = mix_explore_distance_losses.mean()
-
             loss += 0.001*(self.ind*individual_loss + self.mix*mix_explore_distance_loss)
 
         self.optimiser.zero_grad()
