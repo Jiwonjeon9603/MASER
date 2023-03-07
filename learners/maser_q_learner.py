@@ -146,20 +146,27 @@ class maserQLearner:
 
             ddqn_up_list = []
             distance_list = []
+            explore_list = []
             for i in range(batch.batch_size):
                 ddqn_up_list_subset = []
                 distance_subset = []
                 explore_loss_subset = []
                 for j in range(self.n_agents):
+                    
+                    # For distillation (exploration)
+                    
+                    y = F.softmax(target_ind_q[i, ddqn_qval_up_idx[i][j]:, j, :], dim=-1) + 1e-6
+                    z = F.softmax(explore_q_target[i, ddqn_qval_up_idx[i][j]:, j, :], dim=-1)
+                    loss1 = y * ((y / z).log())
+                    explore_loss = th.sum(loss1, dim=-1)
+                    explore_loss_subset.append(th.mean(explore_loss))
+                    
+                    
 
                     # For distance function
-
+                    
                     cos = nn.CosineSimilarity(dim=-1, eps=1e-8)
-                    cos1 = nn.CosineSimilarity()
                     goal_q = target_ind_q[i, ddqn_qval_up_idx[i][j], j, :].repeat(target_ind_q.shape[1], 1)
-
-                    a = cos(target_ind_q[i, :, j, :], goal_q)
-                    b = cos1(target_ind_q[i, :, j, :], goal_q)
 
                     similarity = 1 - cos(target_ind_q[i, :, j, :], goal_q)
                     dist_obs = self.distance(observation[i, :, j, :])
@@ -170,15 +177,19 @@ class maserQLearner:
                     distance_subset.append(distance_loss)
                     ddqn_up_list_subset.append(observation[i, ddqn_qval_up_idx[i][j], j, :])
 
+                explore_loss1 = th.stack(explore_loss_subset)
+                explore_list.append(explore_loss1)
+                
                 distance1 = th.stack(distance_subset)
                 distance_list.append(distance1)
 
                 ddqn_up1 = th.stack(ddqn_up_list_subset)
                 ddqn_up_list.append(ddqn_up1)
 
+            explore_losses = th.stack(explore_list)
             distance_losses = th.stack(distance_list)
 
-            mix_explore_distance_losses = self.dis*distance_losses
+            mix_explore_distance_losses = self.expl*explore_losses + self.dis*distance_losses
 
             ddqn_up = th.stack(ddqn_up_list)
             ddqn_up = ddqn_up.unsqueeze(dim=1)
