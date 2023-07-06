@@ -4,6 +4,11 @@ This repository is an implementation of "MASER: Multi-Agent Reinforcement Learni
 ## Requirements
 You need to install StarCraft2 and SMAC.
 
+Set up StarCraft2
+```
+bash install_sc2.sh
+```
+
 I provide all libraries and packages for this codes. Try the follow
 ```
 pip install -r requirements.txt
